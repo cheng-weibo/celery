@@ -1,0 +1,55 @@
+celery==3.1.25
+redis==2.10.6
+
+redis配置文件：
+    # bind 127.0.0.1  默认设置， 56
+    bind 0.0.0.0   允许所有主机连接
+    protected-mode no  使用密码，默认yes  75
+
+task： 生产者，python任务
+broker：任务队列中间件，redis或rabbitmq
+worker：消费者，任务执行单元
+使用场景：异步任务，定时任务
+
+# 当redis需要密码时-->":密码@"， :123123@
+broker = 'redis://:123123@localhost:6379/1'
+backend = 'redis://:123123@localhost:6379/2'
+app = Celery('my_task', broker=broker, backend=backend)
+@app.task
+def add(x, y):
+    pass
+
+
+启动celery
+    celery -A tasks worker -l info
+        -A：指定Celery实例的位置, 如果tasks不在当前目录，可以指定-A ***.tasks
+        -l：日志级别，默认warning 或--level=info
+
+正常流程先启动celery，再启动项目，生产任务后放到队列中，正常看到日志
+如果产生任务的时候celery没有启动，那么任务依然会放到redis中，
+启动celery后会自行去调度，执行任务
+
+"""  result.ready()查看任务是否执行完毕
+>>> result = add.delay(1, 2)
+>>> result.ready()
+False
+>>> result.ready()
+True
+"""
+
+*********使用配置文件********
+在一个py文件中配置celery参数，
+在另一个py文件cfg.py中生成Celery实例app，app.config_from_object('***.cfg')就可以直接使用配置文件中定义的参数
+
+*********定时任务********
+from datetime import timedelta
+from celery.schedules import crontab
+配置文件设置： CELERYBEAT_SCHEDULE
+开启定时任务：celery beat -A celery_app -l info
+配置文件中定义定时任务时，定时任务的名字自定义
+
+
+同时启动celery及定时任务(不支持Windows)：celery -B -A celery_app worker -l info
+    D:***\celery_test>celery -B -A celery_app worker -l info
+    -B option does not work on Windows.  Please run celery beat as a separate service.
+
